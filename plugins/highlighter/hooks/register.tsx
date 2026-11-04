@@ -103,7 +103,7 @@ export const register: Register = on => {
     }
 
     const item = (i: Item) => (
-      <Box flexDirection="row" paddingLeft={i.depth * 2}>
+      <Box flexDirection="row" alignItems="flex-start" paddingLeft={i.depth * 2}>
         <Box flexShrink={0} width={i.marker ? i.marker.length + 1 : 0}>
           <Text dimColor>{i.marker === '-' || i.marker === '*' || i.marker === '+' ? (isTerminal ? '-' : '•') : i.marker}</Text>
         </Box>

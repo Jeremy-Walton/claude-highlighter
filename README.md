@@ -2,6 +2,39 @@
 
 A Claude Code plugin that makes Claude's replies easier to scan. It redraws each reply with color, the way a syntax highlighter colors code. Claude's words and the saved transcript do not change.
 
+## Before and after
+
+| Before | After |
+| --- | --- |
+| ![A Claude reply drawn as plain text](before.png) | ![The same reply with colored titles, a boxed Next section and a RESULT box](after.png) |
+
+## Install
+
+At the prompt of a Claude Code terminal session:
+
+```
+/plugin install highlighter --marketplace Jeremy-Walton/claude-highlighter
+```
+
+1. Answer `y` to add the marketplace.
+2. Pick a scope. The user scope turns the highlighter on in every session.
+
+From a shell:
+
+```bash
+claude plugin install highlighter --marketplace Jeremy-Walton/claude-highlighter
+```
+
+In the desktop app, where `/plugin` does not run:
+
+1. Click **+** next to the prompt box, then **Plugins**.
+2. Click **Add marketplace** and enter `Jeremy-Walton/claude-highlighter`.
+3. Click **Add plugin** and pick **highlighter**.
+
+The highlighter starts with the next reply. To turn it off, run `/plugin` and disable or uninstall **highlighter**.
+
+## What it highlights
+
 | # | Rule | What it does |
 | --- | --- | --- |
 | 1 | Section titles | Colors titles by type: green for Fixed or Summary, yellow for Look here or Risks, blue boxed for Next, purple for Decide |
@@ -17,26 +50,6 @@ A Claude Code plugin that makes Claude's replies easier to scan. It redraws each
 | 11 | Report card | Frames a reply that has titles or a result line |
 
 Code blocks, tables and links keep Claude Code's own drawing, so links stay clickable.
-
-## Install
-
-At the prompt of a Claude Code terminal session:
-
-```
-/plugin install highlighter --marketplace Jeremy-Walton/claude-highlighter
-```
-
-Answer `y` to add the marketplace, then pick a scope. The user scope turns it on in every session.
-
-From a shell:
-
-```bash
-claude plugin install highlighter --marketplace Jeremy-Walton/claude-highlighter
-```
-
-In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `Jeremy-Walton/claude-highlighter`, then Add plugin.
-
-A private repository installs only for people who can read it on GitHub and whose machine already has a git credential for github.com (an SSH key, or `gh auth login` then `gh auth setup-git`).
 
 ## Develop
 

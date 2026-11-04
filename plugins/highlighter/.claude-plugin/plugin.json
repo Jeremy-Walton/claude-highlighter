@@ -1,0 +1,6 @@
+{
+  "name": "highlighter",
+  "version": "0.1.0",
+  "description": "Colors the section titles, next steps, warnings and results in Claude's replies so they are easier to scan.",
+  "author": { "name": "Jeremy Walton" }
+}

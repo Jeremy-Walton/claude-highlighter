@@ -1,0 +1,12 @@
+{
+  "name": "claude-highlighter",
+  "description": "Plugins that make Claude Code's replies easier to read.",
+  "owner": { "name": "Jeremy Walton" },
+  "plugins": [
+    {
+      "name": "highlighter",
+      "source": "./plugins/highlighter",
+      "description": "Colors the section titles, next steps, warnings and results in Claude's replies so they are easier to scan."
+    }
+  ]
+}

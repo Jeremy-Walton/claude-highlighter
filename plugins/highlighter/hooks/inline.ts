@@ -4,7 +4,7 @@ export type Tone = 'act' | 'narr' | 'headline'
 export type Piece = { text: string; code?: true; bold?: true; italic?: true; mark?: Mark }
 export type Sentence = { tone?: Tone; pieces: Piece[] }
 
-const ACTION = /^(Run |Start |Push:|Pushing needs|Unlock|Tell me|Next, run|If it looks right, run|Ask for|Step \d+ is your call)|for you[:.]|your call|worth noting on the ticket|when convenient/
+const ACTION = /^(Run |Start |Push:|Pushing needs|Unlock|Tell me|Next, run|If it looks right, run|Ask for|Step \d+ is your call)|(left|open questions) for you|your call|worth noting on the ticket|when convenient/
 const NARRATION = /^(I'm |I'll |Next I'm |Next I'll |Now |Still waiting|Checking |While |That leaves|Committing now|You chose|The [\w-]+ (tester|verifier) is |[\w-]+ is the last|The \w+ [\w-]+ reviewers are running|All \w+ [\w-]+ reviewers are running|[\w, -]+ (is|are) still running)|still running\.$|will follow/
 
 const MARKS: [Mark, RegExp][] = [

@@ -72,7 +72,7 @@ export const register: Register = on => {
         <Text color="claude" weight="bold">
           {styled(l.label).map(piece)}
           {l.detail ? <Text dimColor weight="regular"> {l.detail}</Text> : ''}
-          {':'}
+          {l.noColon ? '' : ':'}
         </Text>
       )
 
@@ -167,10 +167,10 @@ export const register: Register = on => {
       return body
     }
 
-    // The engine draws the reply's bullet and its two-column indent; a tree
-    // that replaces the row draws them itself.
+    // The engine draws the reply's bullet, its two-column indent and the blank
+    // line above it; a tree that replaces the row draws them itself.
     return (
-      <Box flexDirection="row">
+      <Box flexDirection="row" marginTop={1}>
         <Box flexShrink={0} width={2}>
           <Text>{e.props.isFirstOfReply ? '●' : ''}</Text>
         </Box>

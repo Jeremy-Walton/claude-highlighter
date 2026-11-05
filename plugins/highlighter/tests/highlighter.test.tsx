@@ -45,7 +45,7 @@ test('splits a reply into sections, leads and boxes', () => {
   const fixed = blocks[1]
   if (fixed?.type !== 'section') throw new Error('expected a section')
   expect(fixed.blocks.map(b => b.type)).toEqual(['para', 'list', 'para'])
-  expect(fixed.blocks[0]).toEqual({ type: 'para', text: '', lead: { label: 'make-it-right', detail: '(1aede1b6b)' } })
+  expect(fixed.blocks[0]).toEqual({ type: 'para', text: '', lead: { label: 'make-it-right', detail: '(1aede1b6b)', noColon: true } })
   expect(fixed.blocks[2]).toEqual({
     type: 'para',
     text: 'the code grew by 3 lines.',
@@ -135,5 +135,26 @@ test('a reply of only code goes to the engine', async ($, on) => {
   })
 
   expect((await ui.find({ type: 'Text' }))?.text).toBe('engine')
+  await ui.unmount()
+})
+
+test('a bare bold title draws no colon, and a plain "for you." is not an action', () => {
+  expect(leadOf('**Bullet fix**')?.lead).toEqual({ label: 'Bullet fix', detail: '', noColon: true })
+  expect(leadOf('**Bullet fix:**')?.lead).toEqual({ label: 'Bullet fix', detail: '' })
+  expect(sentences("I can't answer that question for you.")[0]?.tone).toBeUndefined()
+  expect(sentences('Two things are left for you:')[0]?.tone).toBe('act')
+})
+
+test('the terminal row keeps the blank line above a reply', async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  const ui = await $.ui.mount({ ...MESSAGE, surface: 'terminal', props: { text: REPLY, isFirstOfReply: true } })
+  const rows = await ui.findAll({ type: 'Box' })
+
+  expect(rows[0]?.props.marginTop).toBe(1)
   await ui.unmount()
 })

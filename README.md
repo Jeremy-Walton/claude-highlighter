@@ -2,6 +2,8 @@
 
 A Claude Code plugin that makes Claude's replies easier to scan. It redraws each reply with color, the way a syntax highlighter colors code. Claude's words and the saved transcript do not change.
 
+It works in both the Claude Code terminal and the Claude desktop app. Each one draws the rules with its own theme colors.
+
 ## Before and after
 
 | Before | After |

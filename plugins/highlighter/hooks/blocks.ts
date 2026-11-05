@@ -1,7 +1,8 @@
 export type Kind = 'done' | 'check' | 'next' | 'decide' | 'plain'
 export type Severity = 'high' | 'medium' | 'low'
 
-export type Lead = { label: string; detail: string; severity?: Severity }
+// noColon: the reply wrote the label as a bare title, so none is drawn after it.
+export type Lead = { label: string; detail: string; severity?: Severity; noColon?: true }
 
 export type Item = { depth: number; marker: string; text: string; lead?: Lead }
 
@@ -17,7 +18,7 @@ export type Parsed = { blocks: Block[]; isReport: boolean }
 const KEYWORDS: [Kind, RegExp][] = [
   ['next', /^(next( steps?)?|what (you|to) do( now| next)?|now what|your turn|to ?do|action items?|try it|\w+ things? (is|are) left for you)$/i],
   ['decide', /^(decide|decisions?|options?|choose|pick one|your call|questions?)$/i],
-  ['check', /^(look here|look at|heads up|watch out|warnings?|risks?|caveats?|notes?|not done|not verified|open issues|issues|problems|concerns|gotchas?|blocked|smaller .+ notes)$/i],
+  ['check', /^(look here|look at|heads up|watch out|warnings?|risks?|caveats?|notes?|not done|not verified|open issues|issues|problems|concerns|gotchas?|blocked|not committed|uncommitted|not pushed|smaller .+ notes)$/i],
   ['done', /^(done|did|fixed|changed|changes|what i did|what changed|summary|results?|completed|shipped|checks i ran|verified|what already .+)$/i],
 ]
 
@@ -55,13 +56,13 @@ export function leadOf(text: string): { lead: Lead; rest: string } | undefined {
     const rest = bold[4] ?? ''
     // "**Note** this is..." is a bold word in a sentence, not a lead-in.
     if (hasColon || rest === '') {
-      return { lead: { label, detail: bold[2] ?? '' }, rest }
+      return { lead: { label, detail: bold[2] ?? '', ...(hasColon ? {} : { noColon: true as const }) }, rest }
     }
   }
 
   const named = NAME_HASH.exec(text)
   if (named?.[1]) {
-    return { lead: { label: named[1], detail: named[2] ?? '' }, rest: '' }
+    return { lead: { label: named[1], detail: named[2] ?? '', noColon: true }, rest: '' }
   }
 
   const plain = PLAIN_LEAD.exec(text)

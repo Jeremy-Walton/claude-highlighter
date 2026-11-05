@@ -1,3 +1,4 @@
+import type { CommandRunInput, ConfigRow, PromptAutocompleteInput, PromptAutocompleteResult } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import { leadOf, parse } from '../hooks/blocks'
@@ -157,4 +158,121 @@ test('the terminal row keeps the blank line above a reply', async ($, on) => {
 
   expect(rows[0]?.props.marginTop).toBe(1)
   await ui.unmount()
+})
+
+test('a fixed theme draws with its own colors', { options: { theme: 'dracula' } }, async ($, on) => {
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...MESSAGE, surface, props: { text: REPLY, isFirstOfReply: true } })
+    const colors = async (text: RegExp) => (await ui.findAll({ type: 'Text', text })).map(found => found.props.color)
+
+    expect(await colors(/^▍Next$/)).toContain('#8be9fd')
+    expect(await colors(/^▍Look here$/)).toContain('#f1fa8c')
+    expect(await colors(/^RESULT$/)).toContain('#50fa7b')
+    await ui.unmount()
+  }
+})
+
+const THEME_ROW: ConfigRow = {
+  key: 'highlighter@claude-highlighter.theme',
+  label: 'Color theme',
+  kind: 'choice',
+  value: 'terminal',
+  options: ['terminal', 'dracula', 'nord'],
+  provider: { plugin: 'highlighter', tier: 'user' },
+  isLocked: false,
+}
+
+const run = (args: string): CommandRunInput => ({
+  command: 'highlighter-theme',
+  args,
+  origin: { kind: 'composer' },
+  presentation: { isFullscreen: false, columns: 100 },
+})
+
+test('the command sets the theme by name', async ($, on) => {
+  const set: unknown[] = []
+  on('command.register', () => ({ value: { command: 'highlighter-theme' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('config.list', () => ({ value: [THEME_ROW] }))
+  on('config.set', (_, e) => {
+    set.push([e.key, e.value])
+
+    return { value: e.value }
+  })
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const named = await $.command.run(run('nord'))
+  const unknown = await $.command.run(run('neon'))
+
+  expect(set).toEqual([['highlighter@claude-highlighter.theme', 'nord']])
+  expect(JSON.stringify(named)).toContain('Nord')
+  expect(JSON.stringify(unknown)).toContain('No theme named')
+})
+
+test('the picker lists every theme and sets the one pressed', async ($, on) => {
+  const set: unknown[] = []
+  on('config.list', () => ({ value: [THEME_ROW] }))
+  on('config.set', (_, e) => {
+    set.push(e.value)
+
+    return { value: e.value }
+  })
+  on('ui.close', () => ({ value: undefined }))
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({
+      plugin: 'highlighter',
+      component: 'Pane',
+      requestId: 'highlighter-theme',
+      surface,
+      props: {
+        title: 'Highlighter theme',
+        isFocused: true,
+        bodyColumns: 60,
+        placement: 'dock',
+        scroll: { offset: 0, bodyRows: 20 },
+        view: {},
+      },
+    })
+
+    expect(await ui.findAll({ type: 'Button' })).toHaveLength(9)
+    expect(await ui.find({ type: 'Text', text: /current/ })).toBeTruthy()
+    await ui.press({ key: 'gruvbox-dark' })
+    await ui.unmount()
+  }
+
+  expect(set).toEqual(['gruvbox-dark', 'gruvbox-dark'])
+})
+
+test('the command hint lists every theme, and typing suggests them', async ($, on) => {
+  const registered: string[] = []
+  on('command.register', (_, e) => {
+    registered.push(e.argumentHint ?? '')
+
+    return { value: { command: e.name } }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('prompt.autocomplete', () => ({ suggestions: [] }))
+
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  expect(registered[0]).toBe('[terminal|cobalt2|dracula|nord|solarized-dark|gruvbox-dark|tokyo-night|lumon|github-light]')
+
+  // The test kit raises prompt.autocomplete, but this build's typings leave it
+  // off the prompt noun.
+  const prompt = $.prompt as unknown as {
+    autocomplete: (e: PromptAutocompleteInput) => Promise<PromptAutocompleteResult>
+  }
+  const typed = (text: string) =>
+    prompt.autocomplete({ text, cursor: text.length, token: text.split(' ').pop() ?? '', start: text.lastIndexOf(' ') + 1 })
+
+  expect((await typed('/highlighter-theme t')).suggestions.map(s => s.text)).toEqual(['terminal', 'tokyo-night'])
+  expect((await typed('/highlighter-theme g')).suggestions.map(s => s.text)).toEqual(['gruvbox-dark', 'github-light'])
+  expect((await typed('/highlighter-theme t')).suggestions[0]?.description).toBe('Terminal (current)')
+  expect((await typed('/other t')).suggestions).toEqual([])
 })

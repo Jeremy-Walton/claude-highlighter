@@ -1,6 +1,27 @@
 {
   "name": "highlighter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Colors the section titles, next steps, warnings and results in Claude's replies so they are easier to scan.",
-  "author": { "name": "Jeremy Walton" }
+  "author": {
+    "name": "Jeremy Walton"
+  },
+  "userConfig": {
+    "theme": {
+      "type": "string",
+      "title": "Color theme",
+      "description": "Colors the highlighter draws with. Terminal follows your Claude Code theme; the others use fixed colors. Change it with /highlighter-theme.",
+      "default": "terminal",
+      "options": [
+        "terminal",
+        "cobalt2",
+        "dracula",
+        "nord",
+        "solarized-dark",
+        "gruvbox-dark",
+        "tokyo-night",
+        "lumon",
+        "github-light"
+      ]
+    }
+  }
 }

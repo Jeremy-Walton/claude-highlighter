@@ -53,6 +53,30 @@ The highlighter starts with the next reply. To turn it off, run `/plugin` and di
 
 Code blocks, tables and links keep Claude Code's own drawing, so links stay clickable.
 
+## Themes
+
+The highlighter has nine color themes:
+
+| Theme | Setting value |
+| --- | --- |
+| Terminal (default, follows your Claude Code theme) | `terminal` |
+| Cobalt2 | `cobalt2` |
+| Dracula | `dracula` |
+| Nord | `nord` |
+| Solarized Dark | `solarized-dark` |
+| Gruvbox Dark | `gruvbox-dark` |
+| Tokyo Night | `tokyo-night` |
+| Lumon | `lumon` |
+| GitHub Light | `github-light` |
+
+To pick one, use any of these:
+
+- Run `/highlighter-theme`. A picker opens with a preview of each theme. Press its number or click it.
+- Run `/highlighter-theme dracula` to set a theme by name.
+- Open `/config` and change **Color theme**.
+
+The themes change only the highlighter's colors. Your terminal's background and text colors stay the same, so pick a theme that suits them.
+
 ## Develop
 
 The plugin lives in `plugins/highlighter/`.

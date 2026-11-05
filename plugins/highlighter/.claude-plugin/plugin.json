@@ -1,6 +1,6 @@
 {
   "name": "highlighter",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Colors the section titles, next steps, warnings and results in Claude's replies so they are easier to scan.",
   "author": {
     "name": "Jeremy Walton"
@@ -9,9 +9,10 @@
     "theme": {
       "type": "string",
       "title": "Color theme",
-      "description": "Colors the highlighter draws with. Terminal follows your Claude Code theme; the others use fixed colors. Change it with /highlighter-theme.",
-      "default": "terminal",
+      "description": "Colors the highlighter draws with. System follows your Omarchy theme, or uses the Terminal theme where Omarchy is not installed. Terminal follows your Claude Code theme; the others use fixed colors. Change it with /highlighter-theme.",
+      "default": "system",
       "options": [
+        "system",
         "terminal",
         "cobalt2",
         "dracula",
@@ -23,5 +24,6 @@
         "github-light"
       ]
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }

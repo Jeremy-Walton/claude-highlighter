@@ -55,11 +55,12 @@ Code blocks, tables and links keep Claude Code's own drawing, so links stay clic
 
 ## Themes
 
-The highlighter has nine color themes:
+The default theme is **System**. On [Omarchy](https://omarchy.org/), System uses the colors of your current Omarchy theme and follows you when you switch themes. Anywhere else, System is the Terminal theme.
 
 | Theme | Setting value |
 | --- | --- |
-| Terminal (default, follows your Claude Code theme) | `terminal` |
+| System (default): your Omarchy theme, or Terminal without Omarchy | `system` |
+| Terminal: follows your Claude Code theme | `terminal` |
 | Cobalt2 | `cobalt2` |
 | Dracula | `dracula` |
 | Nord | `nord` |
@@ -77,13 +78,21 @@ To pick one, use any of these:
 
 The themes change only the highlighter's colors. Your terminal's background and text colors stay the same, so pick a theme that suits them.
 
+### How System reads Omarchy
+
+- It reads the current theme's `colors.toml` from `~/.local/state/omarchy/current/theme/`. Older Omarchy releases keep it in `~/.config/omarchy/current/theme/`, and a theme with no `colors.toml` is read from its `alacritty.toml`.
+- It uses the theme's orange for labels, green for done, yellow for warnings, blue for next steps, magenta for decisions, red for failures, and cyan for code.
+- It checks for a theme switch every 3 seconds, and open replies redraw in the new colors.
+
 ## Develop
 
 The plugin lives in `plugins/highlighter/`.
 
 - `hooks/blocks.ts` splits a reply into sections, lists, lead-ins and boxes.
 - `hooks/inline.ts` splits text into sentences and marks the inline rules.
-- `hooks/register.tsx` draws the result.
+- `hooks/themes.ts` holds the fixed themes.
+- `hooks/omarchy.ts` finds and reads the Omarchy theme.
+- `hooks/register.tsx` draws the result, and adds the theme command and picker.
 
 Run a session with your local copy:
 

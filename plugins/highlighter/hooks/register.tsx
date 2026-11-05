@@ -1,31 +1,43 @@
+import { atom, read, update } from 'claude-code'
 import type { Color, EngineInterface, Register } from 'claude-code'
 
 import { parse } from './blocks'
 import type { Block, Item, Kind, Lead, Severity } from './blocks'
 import { hasLink, sentences, styled } from './inline'
 import type { Mark, Piece, Sentence } from './inline'
-import { PREVIEW_ROLES, THEMES, findTheme, themeOf } from './themes'
-import type { Theme } from './themes'
+import { load, locate } from './omarchy'
+import { CHOICES, PREVIEW_ROLES, SYSTEM, findChoice, fixedTheme, systemTheme } from './themes'
+import type { Choice, Theme } from './themes'
 
 const PANE = 'highlighter-theme'
 const COMMAND = 'highlighter-theme'
+const POLL_MS = 3000
 
 // The setting's key is `<plugin>.theme`, where an installed plugin's name
 // carries its marketplace (`highlighter@claude-highlighter`).
 const THEME_KEY = /^highlighter(@[^.]*)?\.theme$/
 
-async function setTheme($: EngineInterface, theme: Theme): Promise<string> {
+// Change the tag when SystemTheme's fields change: it declines what an
+// earlier version stored, which outlives a reload.
+const system = atom({ plugin: 'highlighter', key: 'system' } as const, null, { shape: 'system-1' })
+
+async function setTheme($: EngineInterface, choice: Choice): Promise<string> {
   const row = (await $.config.list()).find(one => THEME_KEY.test(one.key))
   if (!row) return 'The highlighter has no theme setting here.'
 
-  const result = await $.config.set({ key: row.key, value: theme.id })
+  const result = await $.config.set({ key: row.key, value: choice.id })
   if ('deny' in result && result.deny) return `The theme was not changed: ${result.deny}`
 
-  return `Highlighter theme: ${theme.name}.`
+  return `Highlighter theme: ${choice.name}.`
 }
 
-export const register: Register = (on, options) => {
-  const theme = themeOf(options.theme)
+// Reading the state subscribes the drawing, so a theme switch on the system
+// redraws every reply.
+async function currentTheme($: EngineInterface, fixed: Theme | undefined): Promise<Theme> {
+  return fixed ?? systemTheme(await read($, system))
+}
+
+function paletteOf(theme: Theme) {
   const c = theme.colors
   const KIND_COLORS: Record<Kind, Color> = {
     done: c.done,
@@ -46,12 +58,40 @@ export const register: Register = (on, options) => {
     low: c.muted,
   }
 
+  return { c, KIND_COLORS, MARK_COLORS, SEVERITY_COLORS }
+}
+
+export const register: Register = (on, options) => {
+  const fixed = fixedTheme(options.theme)
+  const choiceId = fixed?.id ?? SYSTEM.id
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: COMMAND,
       description: 'Pick the highlighter color theme',
-      argumentHint: `[${THEMES.map(one => one.id).join('|')}]`,
+      argumentHint: `[${CHOICES.map(one => one.id).join('|')}]`,
     })
+
+    if (!fixed) {
+      let lastKey: string | undefined
+      const refresh = async () => {
+        try {
+          const found = await locate($)
+          const key = found?.key ?? 'none'
+          if (key === lastKey) return
+
+          lastKey = key
+          const theme = found ? await load($, found) : null
+          await update($, system, () => theme)
+        } catch {
+          // A theme file caught mid-switch is read again on the next tick.
+          lastKey = undefined
+        }
+      }
+
+      await refresh()
+      $.clock.every(POLL_MS, () => void refresh())
+    }
 
     return next(e)
   })
@@ -61,9 +101,9 @@ export const register: Register = (on, options) => {
     if (!new RegExp(`^\\s*/${COMMAND}\\s+$`).test(e.text.slice(0, e.start))) return next(e)
 
     const word = e.token.toLowerCase()
-    const mine = THEMES.filter(one => one.id.startsWith(word) || one.name.toLowerCase().startsWith(word)).map(one => ({
+    const mine = CHOICES.filter(one => one.id.startsWith(word) || one.name.toLowerCase().startsWith(word)).map(one => ({
       text: one.id,
-      description: one.id === theme.id ? `${one.name} (current)` : one.name,
+      description: one.id === choiceId ? `${one.name} (current)` : one.name,
     }))
 
     return { suggestions: [...mine, ...(await next(e)).suggestions] }
@@ -71,38 +111,41 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: COMMAND }, async ($, e) => {
     const wanted = e.args.trim()
-    const picked = findTheme(wanted)
+    const picked = findChoice(wanted)
 
     if (picked) return { text: await setTheme($, picked) }
-    if (wanted) return { text: `No theme named "${wanted}". Themes: ${THEMES.map(one => one.id).join(', ')}.` }
+    if (wanted) return { text: `No theme named "${wanted}". Themes: ${CHOICES.map(one => one.id).join(', ')}.` }
 
-    await $.ui.open({ id: PANE, title: 'Highlighter theme', focus: true, closeOnEscape: true, rows: THEMES.length + 3 })
+    await $.ui.open({ id: PANE, title: 'Highlighter theme', focus: true, closeOnEscape: true, rows: CHOICES.length + 3 })
 
     return { text: 'Theme picker opened.' }
   }).catch(() => ({ text: 'The theme command failed. Set the theme in /config instead.' }))
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Button, Text } = $.ui.resolve(e)
+    const resolved = systemTheme(await read($, system))
+    const rows: Theme[] = [resolved, ...CHOICES.slice(1).map(one => fixedTheme(one.id) as Theme)]
 
     return (
       <Box flexDirection="column">
-        {THEMES.map((one, index) => {
-          const isCurrent = one.id === theme.id
+        {rows.map((one, index) => {
+          const isCurrent = one.id === choiceId
+          const label = one.id === SYSTEM.id ? SYSTEM.name : one.name
 
           return (
             <Button
               key={one.id}
               plain
-              hotkey={String(index + 1)}
+              hotkey={String((index + 1) % 10)}
               onPress={async () => {
                 // Changing the setting reloads this module, so close first.
                 await $.ui.close({ id: PANE })
-                $.ui.toast(await setTheme($, one))
+                $.ui.toast(await setTheme($, { id: one.id, name: label }))
               }}
             >
               <Text {...(isCurrent ? { color: one.colors.lead, weight: 'bold' as const } : {})}>
                 {isCurrent ? '✓ ' : '  '}
-                {one.name.padEnd(15)}
+                {label.padEnd(15)}
               </Text>
               {one.swatch ? (
                 <Text color={one.swatch.fg} backgroundColor={one.swatch.bg}>
@@ -115,11 +158,12 @@ export const register: Register = (on, options) => {
               {PREVIEW_ROLES.map(role => (
                 <Text color={one.colors[role]}>{'● '}</Text>
               ))}
+              {one.id === SYSTEM.id ? <Text dimColor>{one.name.replace(/^System: /, '')} </Text> : ''}
               {isCurrent ? <Text dimColor>current</Text> : ''}
             </Button>
           )
         })}
-        <Text dimColor>Press 1-9 or click a theme. Esc closes.</Text>
+        <Text dimColor>Press 1-9 or 0, or click a theme. Esc closes.</Text>
       </Box>
     )
   })
@@ -135,6 +179,7 @@ export const register: Register = (on, options) => {
     }
 
     const { Box, Text, Markdown } = $.ui.resolve(e)
+    const { c, KIND_COLORS, MARK_COLORS, SEVERITY_COLORS } = paletteOf(await currentTheme($, fixed))
     const isTerminal = e.surface === 'terminal'
     let isFirstProse = true
 

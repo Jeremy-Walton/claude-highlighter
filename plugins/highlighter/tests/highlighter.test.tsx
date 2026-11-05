@@ -1,7 +1,9 @@
 import type { CommandRunInput, ConfigRow, PromptAutocompleteInput, PromptAutocompleteResult } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
+import type { TestBody } from 'claude-code/testing'
 
 import { leadOf, parse } from '../hooks/blocks'
+import { displayName, fromAlacritty, fromColorsToml } from '../hooks/omarchy'
 import { sentences } from '../hooks/inline'
 
 const REPLY = `The clean-up is done. All 11 branch checks pass.
@@ -241,7 +243,7 @@ test('the picker lists every theme and sets the one pressed', async ($, on) => {
       },
     })
 
-    expect(await ui.findAll({ type: 'Button' })).toHaveLength(9)
+    expect(await ui.findAll({ type: 'Button' })).toHaveLength(10)
     expect(await ui.find({ type: 'Text', text: /current/ })).toBeTruthy()
     await ui.press({ key: 'gruvbox-dark' })
     await ui.unmount()
@@ -261,7 +263,7 @@ test('the command hint lists every theme, and typing suggests them', async ($, o
   on('prompt.autocomplete', () => ({ suggestions: [] }))
 
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
-  expect(registered[0]).toBe('[terminal|cobalt2|dracula|nord|solarized-dark|gruvbox-dark|tokyo-night|lumon|github-light]')
+  expect(registered[0]).toBe('[system|terminal|cobalt2|dracula|nord|solarized-dark|gruvbox-dark|tokyo-night|lumon|github-light]')
 
   // The test kit raises prompt.autocomplete, but this build's typings leave it
   // off the prompt noun.
@@ -273,6 +275,135 @@ test('the command hint lists every theme, and typing suggests them', async ($, o
 
   expect((await typed('/highlighter-theme t')).suggestions.map(s => s.text)).toEqual(['terminal', 'tokyo-night'])
   expect((await typed('/highlighter-theme g')).suggestions.map(s => s.text)).toEqual(['gruvbox-dark', 'github-light'])
-  expect((await typed('/highlighter-theme t')).suggestions[0]?.description).toBe('Terminal (current)')
+  expect((await typed('/highlighter-theme s')).suggestions.map(s => [s.text, s.description])).toEqual([
+    ['system', 'System (current)'],
+    ['solarized-dark', 'Solarized Dark'],
+  ])
   expect((await typed('/other t')).suggestions).toEqual([])
+})
+
+const TOKYO_NIGHT = `mode = "dark"
+
+accent = "#7aa2f7"
+muted = "#414868"
+background = "#1a1b26"
+foreground = "#a9b1d6"
+
+red = "#f7768e"
+yellow = "#e0af68"
+orange = "#eb927b"
+green = "#9ece6a"
+cyan = "#449dab"
+blue = "#7aa2f7"
+magenta = "#ad8ee6"
+`
+
+test("reads an Omarchy palette from colors.toml or an older alacritty.toml", () => {
+  expect(fromColorsToml(TOKYO_NIGHT, 'Tokyo Night')).toEqual({
+    name: 'Tokyo Night',
+    colors: {
+      lead: '#eb927b',
+      done: '#9ece6a',
+      check: '#e0af68',
+      next: '#7aa2f7',
+      decide: '#ad8ee6',
+      bad: '#f7768e',
+      code: '#449dab',
+      muted: '#414868',
+      chipText: '#1a1b26',
+    },
+    fg: '#a9b1d6',
+    bg: '#1a1b26',
+  })
+
+  const alacritty = `[colors.primary]
+background = '0x2e3440'
+foreground = '#D8DEE9'
+
+[colors.normal]
+red = '#bf616a'
+green = '#a3be8c'
+yellow = '#ebcb8b'
+blue = '#81a1c1'
+
+[colors.bright]
+black = '#4c566a'
+yellow = '#ebcb8b'
+`
+  expect(fromAlacritty(alacritty, 'Nord')?.colors).toEqual({
+    lead: '#ebcb8b',
+    done: '#a3be8c',
+    check: '#ebcb8b',
+    next: '#81a1c1',
+    bad: '#bf616a',
+    muted: '#4c566a',
+    chipText: '#2e3440',
+  })
+  expect(fromColorsToml('mode = "dark"', 'Empty')).toBeUndefined()
+  expect(displayName('tokyo-night\n')).toBe('Tokyo Night')
+})
+
+const OMARCHY = '/home/me/.local/state/omarchy/current'
+
+// A theme switch replaces the files, which the mtime stands for here.
+function omarchyDisk(on: Parameters<TestBody>[1], files: Record<string, string>, mtime = { ms: 1 }) {
+  mock.env(on, { HOME: '/home/me' })
+  const clock = mock.clock(on)
+  on('fs.exists', (_, e) => ({ value: e.path in files }))
+  on('fs.stat', () => ({ value: { kind: 'file', size: 1, mtimeMs: mtime.ms, isLink: false } }))
+  on('fs.read', (_, e) => ({ value: files[e.path] ?? '' }))
+  on('command.register', () => ({ value: { command: 'highlighter-theme' } }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>engine</Text>
+  })
+
+  return clock
+}
+
+test('System follows the Omarchy theme on every surface', async ($, on) => {
+  omarchyDisk(on, { [`${OMARCHY}/theme/colors.toml`]: TOKYO_NIGHT, [`${OMARCHY}/theme.name`]: 'tokyo-night\n' })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...MESSAGE, surface, props: { text: REPLY, isFirstOfReply: true } })
+    const colors = async (text: RegExp) => (await ui.findAll({ type: 'Text', text })).map(found => found.props.color)
+
+    expect(await colors(/^▍Next$/)).toContain('#7aa2f7')
+    expect(await colors(/^▍Look here$/)).toContain('#e0af68')
+    await ui.unmount()
+  }
+})
+
+test('System is the Terminal theme where Omarchy is not installed', async ($, on) => {
+  omarchyDisk(on, {})
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...MESSAGE, surface: 'terminal', props: { text: REPLY, isFirstOfReply: true } })
+  expect((await ui.findAll({ type: 'Text', text: /^▍Next$/ })).map(found => found.props.color)).toContain('suggestion')
+  await ui.unmount()
+})
+
+test('System picks up an Omarchy theme switch within a few seconds', async ($, on) => {
+  const files: Record<string, string> = {
+    [`${OMARCHY}/theme/colors.toml`]: TOKYO_NIGHT,
+    [`${OMARCHY}/theme.name`]: 'tokyo-night',
+  }
+  const mtime = { ms: 1 }
+  const clock = omarchyDisk(on, files, mtime)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+
+  const ui = await $.ui.mount({ ...MESSAGE, surface: 'terminal', props: { text: REPLY, isFirstOfReply: true } })
+  const nextColors = async () => (await ui.findAll({ type: 'Text', text: /^▍Next$/ })).map(found => found.props.color)
+  expect(await nextColors()).toContain('#7aa2f7')
+
+  files[`${OMARCHY}/theme/colors.toml`] = TOKYO_NIGHT.replace('blue = "#7aa2f7"', 'blue = "#81a1c1"')
+  files[`${OMARCHY}/theme.name`] = 'nord'
+  mtime.ms = 2
+  await clock.advance(3000)
+
+  expect(await nextColors()).toContain('#81a1c1')
+  await ui.unmount()
 })
